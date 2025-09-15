@@ -8,10 +8,10 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace Cuest.Migrations
+namespace Cuest.Data.Auth.Migrations
 {
     [DbContext(typeof(AuthDbContext))]
-    [Migration("20250914090028_InitAuth")]
+    [Migration("20250914234634_InitAuth")]
     partial class InitAuth
     {
         /// <inheritdoc />

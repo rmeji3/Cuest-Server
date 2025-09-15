@@ -1,9 +1,12 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Cuest.Dtos.Auth;
+using Cuest.Models.AppUsers;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
 using System.Security.Claims;
-using Cuest.Models.AppUsers;
-using Cuest.Dtos.Auth;
+using System.Text;
 
 namespace Cuest.Controllers.Auth
 {
@@ -15,12 +18,14 @@ namespace Cuest.Controllers.Auth
         private readonly UserManager<AppUser> _users;
         private readonly SignInManager<AppUser> _signIn;
         private readonly ITokenService _tokens;
+        private readonly IHostEnvironment _env;
 
-        public AuthController(UserManager<AppUser> users, SignInManager<AppUser> signIn, ITokenService tokens)
+        public AuthController(UserManager<AppUser> users, SignInManager<AppUser> signIn, ITokenService tokens, IHostEnvironment env)
         {
             _users = users;
             _signIn = signIn;
             _tokens = tokens;
+            _env = env;
         }
 
         [HttpPost("register")]
@@ -68,6 +73,84 @@ namespace Cuest.Controllers.Auth
             if (user is null) return Unauthorized();
 
             return new UserDto(user.Id, user.Email ?? "", user.DisplayName);
+        }
+
+        [HttpPost("password/forgot")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
+        {
+            var user = await _users.FindByEmailAsync(dto.Email);
+            // Always 200 to avoid account enumeration
+            if (user == null) return Ok(new { message = "If the account exists, a reset link has been sent." });
+
+            var token = await _users.GeneratePasswordResetTokenAsync(user);
+            var encoded = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+
+            // Build a link your mobile/web client can handle (adjust to your scheme/route)
+            var link = $"{Request.Scheme}://{Request.Host}/reset-password?email={Uri.EscapeDataString(dto.Email)}&token={encoded}";
+
+            // TODO: Send 'link' via your email service (IEmailSender, SendGrid, etc.)
+            // For development: return token so you can test without email.
+            if (_env.IsDevelopment())
+            {
+                return Ok(new
+                {
+                    message = "Dev-only: use this token to call /auth/password/reset",
+                    token = encoded,
+                    link
+                });
+            }
+
+            return Ok(new { message = "If the account exists, a reset link has been sent." });
+        }
+
+        // ===== 2) Complete reset with token =====
+        [HttpPost("password/reset")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
+        {
+            var user = await _users.FindByEmailAsync(dto.Email);
+            // Always 200 to avoid account enumeration
+            if (user == null) return Ok(new { message = "Password has been reset if the account exists." });
+
+            string decodedToken;
+            try
+            {
+                decodedToken = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(dto.Token));
+            }
+            catch
+            {
+                return BadRequest(new { error = "Invalid token format." });
+            }
+
+            var result = await _users.ResetPasswordAsync(user, decodedToken, dto.NewPassword);
+            if (!result.Succeeded)
+            {
+                return BadRequest(new
+                {
+                    errors = result.Errors.Select(e => new { e.Code, e.Description })
+                });
+            }
+
+            return Ok(new { message = "Password reset successful." });
+        }
+
+        // ===== 3) Change password (authenticated) =====
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        [HttpPost("password/change")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+        {
+            var user = await _users.GetUserAsync(User);
+            if (user == null) return Unauthorized();
+
+            var result = await _users.ChangePasswordAsync(user, dto.CurrentPassword, dto.NewPassword);
+            if (!result.Succeeded)
+            {
+                return BadRequest(new
+                {
+                    errors = result.Errors.Select(e => new { e.Code, e.Description })
+                });
+            }
+
+            return Ok(new { message = "Password changed." });
         }
     }
 }

@@ -21,6 +21,19 @@
         [Required] string Password
     );
 
+    public record ForgotPasswordDto([Required, EmailAddress] string Email);
+
+    public record ResetPasswordDto(
+        [Required, EmailAddress] string Email,
+        [Required] string Token,
+        [Required, MinLength(6)] string NewPassword
+    );
+
+    public record ChangePasswordDto(
+        [Required] string CurrentPassword,
+        [Required, MinLength(6)] string NewPassword
+    );
+
     public interface ITokenService
     {
         Task<AuthResponse> CreateAuthResponseAsync(AppUser user);

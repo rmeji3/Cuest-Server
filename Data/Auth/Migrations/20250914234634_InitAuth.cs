@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Cuest.Migrations
+namespace Cuest.Data.Auth.Migrations
 {
     /// <inheritdoc />
     public partial class InitAuth : Migration

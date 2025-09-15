@@ -1,5 +1,6 @@
 using System.Text;
 using Cuest.Data.Auth;
+using Cuest.Data.App;
 using Cuest.Dtos.Auth;
 using Cuest.Features.Auth;
 using Cuest.Models.AppUsers;
@@ -12,8 +13,13 @@ using Microsoft.OpenApi.Models;
 var builder = WebApplication.CreateBuilder(args);
 
 // --- EF Core (SQLite) ---
+// Auth (Identity tables)
 builder.Services.AddDbContext<AuthDbContext>(opt =>
-    opt.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+    opt.UseSqlite(builder.Configuration.GetConnectionString("AuthConnection")));
+
+// App (Places, Activities, etc.)
+builder.Services.AddDbContext<AppDbContext>(opt =>
+    opt.UseSqlite(builder.Configuration.GetConnectionString("AppConnection")));
 
 // --- Identity ---
 builder.Services.AddIdentityCore<AppUser>(opt =>
@@ -22,7 +28,8 @@ builder.Services.AddIdentityCore<AppUser>(opt =>
 })
 .AddRoles<IdentityRole>()
 .AddEntityFrameworkStores<AuthDbContext>()
-.AddSignInManager<SignInManager<AppUser>>();
+.AddSignInManager<SignInManager<AppUser>>()
+.AddDefaultTokenProviders();
 
 // --- JwtOptions bound from config ---
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
